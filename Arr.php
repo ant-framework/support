@@ -14,7 +14,7 @@ class Arr
     /**
      * 检查是否为数组
      *
-     * @param $value
+     * @param mixed $value
      * @return bool
      */
     public static function accessible($value)
@@ -43,6 +43,21 @@ class Arr
         }
 
         return $results;
+    }
+
+
+    /**
+     * 将数组以Key进行字典排序
+     *
+     * @param array $array
+     * @return array
+     */
+    public static function ksort(array $array)
+    {
+        krsort($array);
+        reset($array);
+
+        return $array;
     }
 
     /**
@@ -83,6 +98,23 @@ class Arr
     }
 
     /**
+     * 剔除数组中的空值
+     *
+     * @param array $array
+     * @return array
+     */
+    public static function removalEmpty(array &$array)
+    {
+        if (static::accessible($array)) {
+            foreach ($array as $key => $value) {
+                if (empty($value)) {
+                    static::forget($array, $key);
+                }
+            }
+        }
+    }
+
+    /**
      * 检查key是否存在在数组中
      *
      * @param array|ArrayAccess $array
@@ -91,7 +123,7 @@ class Arr
      */
     public static function exists($array, $key)
     {
-        if($array instanceof ArrayAccess) {
+        if ($array instanceof ArrayAccess) {
             return $array->offsetExists($key);
         }
 
@@ -176,27 +208,27 @@ class Arr
     /**
      * 检查key是否存在
      *
-     * @param $array
-     * @param $path
+     * @param array|ArrayAccess $array
+     * @param array|mixed $keys
      * @return bool
      */
-    public static function has($array, $path)
+    public static function has($array, $keys)
     {
-        if (is_null($path)) {
+        if (is_null($keys)) {
             return false;
         }
 
-        $path = (array) $path;
+        $keys = (array) $keys;
 
         if (! $array) {
             return false;
         }
 
-        if ($path === []) {
+        if ($keys === []) {
             return false;
         }
 
-        foreach ($path as $key) {
+        foreach ($keys as $key) {
             $subKeyArray = $array;
 
             if (static::exists($array, $key)) {
@@ -219,19 +251,19 @@ class Arr
      * 删除数组中的一个元素
      *
      * @param $array
-     * @param $path
+     * @param $keys
      */
-    public static function forget(&$array, $path)
+    public static function forget(&$array, $keys)
     {
         $original = &$array;
 
-        $path = (array) $path;
+        $keys = (array) $keys;
 
-        if (count($path) === 0) {
+        if (count($keys) === 0) {
             return;
         }
 
-        foreach ($path as $key) {
+        foreach ($keys as $key) {
             if (static::exists($array, $key)) {
                 unset($array[$key]);
 
@@ -240,6 +272,7 @@ class Arr
 
             $parts = explode('.', $key);
 
+            // 将数组重置为原输入数组
             $array = &$original;
 
             while (count($parts) > 1) {
@@ -277,14 +310,14 @@ class Arr
      */
     public static function recursiveCall(array $array, callable $call, $depth = 512)
     {
-        if($depth-- <= 0){
+        if ($depth-- <= 0) {
             return $array;
         }
 
-        foreach($array as $key => $value){
-            if(is_array($value)){
+        foreach ($array as $key => $value) {
+            if (is_array($value)) {
                 $array[$key] = static::recursiveCall($value, $call, $depth);
-            }else{
+            } else {
                 $array[$key] = call_user_func($call,$value);
             }
         }
@@ -302,8 +335,8 @@ class Arr
     public static function take($array, array $keys)
     {
         $result = [];
-        foreach($keys as $key) {
-            if(static::exists($array, $key)) {
+        foreach ($keys as $key) {
+            if (static::exists($array, $key)) {
                 $result[] = $array[$key];
             }
         }
@@ -321,12 +354,12 @@ class Arr
      */
     public static function handleElement(array $array, array $elements, $func = 'rawurlencode')
     {
-        if(!is_callable($func)) {
+        if (!is_callable($func)) {
             throw new InvalidArgumentException("parameter 3 must be a callable");
         }
 
-        foreach($elements as $key) {
-            if(static::exists($array, $key)) {
+        foreach ($elements as $key) {
+            if (static::exists($array, $key)) {
                 $array[$key] = $func($array[$key]);
             }
         }
@@ -344,13 +377,13 @@ class Arr
      */
     public static function getKeywords($array, array $keys)
     {
-        if(!static::accessible($array)) {
+        if (!static::accessible($array)) {
             throw new RuntimeException("parameter 1 must be array");
         }
 
         $result = [];
-        foreach($keys as $key){
-            if(!static::exists($array, $key)) {
+        foreach ($keys as $key) {
+            if (!static::exists($array, $key)) {
                 // 缺少必要参数
                 throw new RuntimeException("\"{$key}\" does not exist");
             }
@@ -370,12 +403,12 @@ class Arr
      */
     public static function checkIllegalKeywords($array,array $keys)
     {
-        if(!static::accessible($array)){
+        if (!static::accessible($array)) {
             throw new RuntimeException("parameter 1 must be array");
         }
 
-        foreach($keys as $key){
-            if(static::exists($array, $key)) {
+        foreach ($keys as $key) {
+            if (static::exists($array, $key)) {
                 // 非法参数
                 throw new RuntimeException("\"{$key}\" is an illegal argument");
             }
