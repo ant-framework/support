@@ -45,21 +45,6 @@ class Arr
         return $results;
     }
 
-
-    /**
-     * 将数组以Key进行字典排序
-     *
-     * @param array $array
-     * @return array
-     */
-    public static function ksort(array $array)
-    {
-        krsort($array);
-        reset($array);
-
-        return $array;
-    }
-
     /**
      * 打乱数组
      *
@@ -76,8 +61,8 @@ class Arr
     /**
      * 将多维数组进行降维
      *
-     * @param $array
-     * @param $depth
+     * @param array|Collection $array   进行降为的集
+     * @param int $depth                递归深度
      * @return mixed
      */
     public static function flatten($array, $depth = INF)
@@ -92,22 +77,22 @@ class Arr
             } elseif ($depth === 1) {
                 return array_merge($result, array_values($item));
             } else {
-                return array_merge($result, static::flatten($item, $depth - 1));
+                return array_merge($result, static::flatten($item, --$depth));
             }
         }, []);
     }
 
     /**
-     * 剔除数组中的空值
+     * 剔除数组中的空值,false不算空值
      *
      * @param array $array
      * @return array
      */
     public static function removalEmpty(array &$array)
     {
-        if (static::accessible($array)) {
+        if (is_array($array)) {
             foreach ($array as $key => $value) {
-                if (empty($value)) {
+                if ($value == '' && !is_bool($value)) {
                     static::forget($array, $key);
                 }
             }
@@ -115,7 +100,7 @@ class Arr
     }
 
     /**
-     * 检查key是否存在在数组中
+     * 检查key是否存在在输入参数中
      *
      * @param array|ArrayAccess $array
      * @param mixed $key
@@ -123,11 +108,13 @@ class Arr
      */
     public static function exists($array, $key)
     {
-        if ($array instanceof ArrayAccess) {
-            return $array->offsetExists($key);
+        if (!static::accessible($array)) {
+            return false;
         }
 
-        return array_key_exists($key,$array);
+        return $array instanceof ArrayAccess
+            ? $array->offsetExists($key)
+            : array_key_exists($key,$array);
     }
 
     /**
@@ -140,12 +127,12 @@ class Arr
      */
     public static function get($array, $path, $default = null)
     {
-        if (is_null($path)) {
+        if (!is_string($path) || empty($path)) {
             return $array;
         }
 
         foreach (explode('.',$path) as $segment) {
-            if (static::accessible($array) && static::exists($array, $segment)) {
+            if (static::exists($array, $segment)) {
                 $array = $array[$segment];
             } else {
                 return $default;
@@ -159,30 +146,45 @@ class Arr
      * 设置一个值到指定的位置
      *
      * @param array $array
-     * @param $path
-     * @param $value
+     * @param string $path
+     * @param mixed $value
+     * @param bool $push
+     * @return array
      */
-    public static function set(&$array, $path, $value)
+    public static function set(&$array, $path, $value, $push = false)
     {
-        if (is_string($path)) {
-            $path = explode('.',$path);
+        if (!is_string($path) || $path == '') {
+            throw new \InvalidArgumentException(
+                '[$path] must be a string and not empty '
+            );
         }
 
+        $path = explode('.',$path);
         $lastKey = array_pop($path);
 
         foreach ($path as $key) {
-            if (! isset($array[$key]) || ! is_array($array[$key])) {
+            if (!static::exists($array, $key)) {
                 $array[$key] = [];
             }
 
-            $array = &$array[$key];
+            // 对象传递过程中默认引用
+            if ($array[$key] instanceof ArrayAccess) {
+                $array = $array[$key];
+            } else {
+                $array = &$array[$key];
+            }
         }
 
-        $array[$lastKey] = $value;
+        if ($push) {
+            // 兼容ArrayAccess
+            $array[$lastKey][] = $value;
+        } else {
+            $array[$lastKey] = $value;
+        }
     }
 
     /**
-     * 将一个指定的值push到设定好的位置
+     * 将参数添加到指定路径的末尾
      *
      * @param array $array
      * @param $path
@@ -190,19 +192,7 @@ class Arr
      */
     public static function push(&$array, $path, $value)
     {
-        if (is_string($path)) {
-            $path = explode('.',$path);
-        }
-
-        foreach ($path as $key) {
-            if (! isset($array[$key]) || ! is_array($array[$key])) {
-                $array[$key] = [];
-            }
-
-            $array = &$array[$key];
-        }
-
-        $array[] = $value;
+        static::set($array, $path, $value, true);
     }
 
     /**
@@ -214,17 +204,9 @@ class Arr
      */
     public static function has($array, $keys)
     {
-        if (is_null($keys)) {
-            return false;
-        }
-
         $keys = (array) $keys;
 
-        if (! $array) {
-            return false;
-        }
-
-        if ($keys === []) {
+        if (!$array || $keys === []) {
             return false;
         }
 
@@ -236,7 +218,7 @@ class Arr
             }
 
             foreach (explode('.', $key) as $segment) {
-                if (static::accessible($subKeyArray) && static::exists($subKeyArray, $segment)) {
+                if (static::exists($subKeyArray, $segment)) {
                     $subKeyArray = $subKeyArray[$segment];
                 } else {
                     return false;
